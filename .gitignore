@@ -1,0 +1,9 @@
+## FOLDERS
+.build
+.output
+.idea
+cmake-build-debug
+venv
+
+# FILE TYPES
+*.xml
