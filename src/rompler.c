@@ -1,39 +1,38 @@
-#include "rompler.h"
-
 #include <stdint.h>
 #include <stdio.h>
 #include <easypdk/pdk.h>
 #include "sample.h"
 #include "bitmanipulation.h"
 
-#define SYSTEM_CLOCK 8000000    // OBSOLETE
-
 // Output pin numeration - PORT A
 #define DAC_BCK_PIN 3           // PA3
 #define DAC_DATA_PIN 4          // PA4
 #define DAC_WORD_SELECT_PIN 0   // PA0
-#define LED_PIN 6               // PA6  - DEBUG LED
+#define LED_PIN 6               // PA6
 
 // Output pin numeration - PORT B
-#define BUTTON_PIN 0            // PA7
-#define ENCODER_PIN 1           // PB1 - Channel 1 ADC
+#define BUTTON_PIN 0            // PB0
+#define ENCODER_PIN 1           // PB1
 
+// DAC
 volatile uint16_t i;
 volatile uint8_t startDAC;
 volatile uint8_t stopDAC;
-uint8_t led_state = 0;
+
+// Pitch Shift
 int8_t enc;
-uint8_t bound;
 uint8_t tm2b;
 
+// Play at button Press
 uint8_t button_last_state;
 uint8_t button_curr_state;
 
 unsigned char _sdcc_external_startup(void){
-    EASY_PDK_INIT_SYSCLOCK_8MHZ();                //use 8MHz sysclock
-    EASY_PDK_USE_FACTORY_IHRCR_16MHZ();            //use factory IHCR tuning value (tuned for 8MHz SYSCLK @ 5.0V)
-    EASY_PDK_USE_FACTORY_BGTR();                  //use factory BandGap tuning value (tuned @ 5.0V)
-    return 0;                                     //perform normal initialization
+    // TODO Refactor this to match the Makefile
+    EASY_PDK_INIT_SYSCLOCK_8MHZ();                  //use 8MHz sysclock
+    EASY_PDK_USE_FACTORY_IHRCR_16MHZ();             //use factory IHCR tuning value (tuned for 8MHz SYSCLK @ 5.0V)
+    EASY_PDK_USE_FACTORY_BGTR();                    //use factory BandGap tuning value (tuned @ 5.0V)
+    return 0;                                       //perform normal initialization
 }
 
 void init_adc(){
@@ -50,16 +49,12 @@ void init_adc(){
 }
 
 void init_timer(){
-    // frequency_timer2 = clock_source / (prescale * scale * (bound_register+1))
-    // frequency_timer2 = 16Mhz / (1 * 2 * 69) = 115942 Hz = 116kHz
-
+    // frequency_timer2 = clock_source / (prescale * scale * (TM2B + 1))
+    // TM2B = freq_clock / (pre_scale * scale * (frequency_timer2) -1)
     // TM2B = freq_clock / (pre_scale * scale * (tone_freq * interrupts_per_cycle) -1)
     // TM2B = 8Mhz / (1 * 1 (440Hz * 128) -1) = 141
-
-    // Measurement: max tone_freq ~= 90Hz
     TM2C = TM2C_CLK_IHRC;                         //use IHRC -> 16 Mhz, clock_source = 16Mhz
     TM2S = TM2S_PRESCALE_NONE | TM2S_SCALE_NONE;  // no prescale, no scale
-
     tm2b = 141;
     TM2B = tm2b;
     INTEN = INTEN_TM2;                            //enable TM2 interrupt, send out initial stop bits and autobaud char
@@ -86,13 +81,13 @@ void setup(){
 
     init_adc();
     init_timer();
-    __engint();
+    __engint();                         // Enable global interrupt
 }
 
 uint8_t readADC(){
-    ADCC |= ADCC_ADC_CONV_START;                  //start ADC conversion // old code
-    while( !(ADCC & ADCC_ADC_CONV_COMPLETE) );    //busy wait for ADC conversion to finish (we also could use the ADC interrupt...) // old code
-    return ADCR;                                  //read the ADC value
+    ADCC |= ADCC_ADC_CONV_START;                  // start ADC conversion
+    while( !(ADCC & ADCC_ADC_CONV_COMPLETE) );    // busy wait for ADC conversion to finish (we also could use the ADC interrupt...)
+    return ADCR;                                  // read the ADC value
 }
 
 void readButton(){
@@ -102,14 +97,14 @@ void readButton(){
         if((button_curr_state) != button_last_state){
             if(button_curr_state){
 
-                // Decrease the original 8Bit ADC resolution down to 7Bit (128Steps)
-                enc = readADC() >> 1;
-                enc -= 64;  // Center the encoder position between [-64, 64]
-                TM2B = tm2b + enc;
 
-                startDAC =1;
+                enc = readADC() >> 1;           // Decrease the original 8Bit ADC resolution down to 7Bit (128Steps)
+                enc -= 64;                      // Center the encoder position between [-64, 64]
+                TM2B = tm2b + enc;              // Modify the playback pitch by adjusting the interrupt frequency
+
+                startDAC = 1;
                 stopDAC = 0;
-                set_bit(PA, LED_PIN);       // DEBUG LED ON
+                set_bit(PA, LED_PIN);           // Turns on the LED to indicate that a sample is played
             }
         }
         button_last_state = button_curr_state;
@@ -139,12 +134,14 @@ void shiftOUTMSBFirst(uint16_t val){
         clear_bit(PA, DAC_BCK_PIN);
     }
 }
+
 uint8_t getData(){
     if (!!startDAC && !!!stopDAC){
         return sample_data[i];
     }
     return 0;
 }
+
 void shiftDACOut(){
     uint8_t curr = getData();
     // Left Channel
@@ -160,7 +157,7 @@ void shiftDACOut(){
         startDAC = 0;
         stopDAC = 1;
         i = 0;
-        clear_bit(PA, LED_PIN);         // DEBUG LED OFF
+        clear_bit(PA, LED_PIN);         // Turns off the LED to indicate that transmission is done
     }
 }
 

@@ -1,4 +1,3 @@
-#include "sinetest.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <easypdk/pdk.h>
@@ -24,9 +23,6 @@ void init_timer(){
 
     // TM2B = freq_clock / (pre_scale * scale * (tone_freq * interrupts_per_cycle) -1)
     // TM2B = 8Mhz / (1 * 1 (440Hz * 128) -1) = 141
-
-    // Measurement: max tone_freq ~= 90Hz (For TM2B <= 180)
-    // Ich konnte mit dem Code eine Sinus Welle erzeugen, ich verstehe allerdings noch nicht wie ich die Frequenz wirklich kontrollieren kann
 
     // Preclar has to be 4:
     // TM2B = 8Mhz/ (4 * (90 * 128) -1) = 172   // which worked
