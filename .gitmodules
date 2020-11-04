@@ -1,0 +1,6 @@
+[submodule "Python-Sample-Handler"]
+	path = Python-Sample-Handler
+	url = https://github.com/Gruftgrabbler/Python-Sample-Handler
+[submodule "bin2header"]
+	path = bin2header
+	url = https://github.com/AntumDeluge/bin2header

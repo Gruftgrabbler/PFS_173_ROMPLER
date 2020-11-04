@@ -49,15 +49,17 @@ void init_adc(){
 }
 
 void init_timer(){
-    // frequency_timer2 = clock_source / (prescale * scale * (TM2B + 1))
+    // frequency_timer2 = samplerate = clock_source / (prescale * scale * (TM2B + 1))
     // TM2B = freq_clock / (pre_scale * scale * (frequency_timer2) -1)
-    // TM2B = freq_clock / (pre_scale * scale * (tone_freq * interrupts_per_cycle) -1)
-    // TM2B = 8Mhz / (1 * 1 (440Hz * 128) -1) = 141
-    TM2C = TM2C_CLK_IHRC;                         //use IHRC -> 16 Mhz, clock_source = 16Mhz
-    TM2S = TM2S_PRESCALE_NONE | TM2S_SCALE_NONE;  // no prescale, no scale
-    tm2b = 141;
+    // The processor is fast enough for a 11025 samplerate but, the memory is so limited that the sample wont fit,
+    // so we need to decrease the samplerate even more.
+    // Samplerate =  5512
+    // TM2B = 16Mhz / (16 * 5512) -1 = 180
+    TM2C = TM2C_CLK_IHRC;                           // use IHRC -> 16 Mhz, clock_source = 16Mhz
+    TM2S = TM2S_PRESCALE_DIV16 | TM2S_SCALE_NONE;   // prescale = 16, scale = 0
+    tm2b = 180;
     TM2B = tm2b;
-    INTEN = INTEN_TM2;                            //enable TM2 interrupt, send out initial stop bits and autobaud char
+    INTEN = INTEN_TM2;                              // enable TM2 interrupt, send out initial stop bits
 }
 
 void setup(){
@@ -92,8 +94,8 @@ uint8_t readADC(){
 
 void readButton(){
     if(!!stopDAC && !!!startDAC) {
-       // button_curr_state = !(PB & (1 << BUTTON_PIN));
-        button_curr_state = (PB & (1 << BUTTON_PIN));
+        // button_curr_state = !(PB & (1 << BUTTON_PIN));
+        button_curr_state = !(PB & (1 << BUTTON_PIN));
         if((button_curr_state) != button_last_state){
             if(button_curr_state){
 
@@ -162,8 +164,8 @@ void shiftDACOut(){
 }
 
 void interrupt(void) __interrupt(0){
-    if(INTRQ & INTRQ_TM2){
-        shiftDACOut();
-        INTRQ &= ~INTEN_TM2;
-    }
+if(INTRQ & INTRQ_TM2){
+shiftDACOut();
+INTRQ &= ~INTEN_TM2;
+}
 }
